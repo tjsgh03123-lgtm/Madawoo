@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>서동은 사건 티어리스트</title>
+<style>
+:root{--bg:#0f1115;--card:#181b22;--line:#2a2f3a;--text:#eef0f4;--mut:#8b93a3;--acc:#ffd24a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;line-height:1.4}
+header{padding:28px 16px 12px;text-align:center}
+h1{margin:0;font-size:28px;letter-spacing:-.5px}
+header p{margin:6px 0 0;color:var(--mut);font-size:14px}
+main{max-width:980px;margin:0 auto;padding:0 12px 80px}
+.add{display:flex;flex-wrap:wrap;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px 0 18px}
+.add input,.add select,.add textarea,.modal input,.modal select,.modal textarea{background:#0f1115;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;font-size:15px}
+.add input.name{flex:2 1 180px}.add select{flex:0 0 90px}.add input.cm{flex:3 1 220px}
+button{font:inherit;cursor:pointer;border:0;border-radius:8px;padding:10px 16px;background:var(--acc);color:#111;font-weight:700}
+button.sec{background:#2a2f3a;color:var(--text);font-weight:500}
+button.danger{background:#5a2328;color:#ffd3d6}
+.tier{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:8px;background:var(--card);min-height:70px}
+.label{flex:0 0 74px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:22px;color:#111;padding:6px;text-align:center}
+.label small{font-size:10px;font-weight:600;opacity:.75;margin-top:2px;line-height:1.2}
+.body{flex:1;padding:8px;min-width:0}
+.desc{color:var(--mut);font-size:12px;margin-bottom:6px}
+.items{display:flex;flex-wrap:wrap;gap:6px;min-height:34px}
+.tier.over{outline:2px dashed var(--acc);outline-offset:-4px}
+.tier.pool{margin-top:18px;border-style:dashed;min-height:90px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-bottom:10px}
+.chip{touch-action:manipulation;position:relative;background:#252a35;border:1px solid #343b49;border-radius:8px;padding:7px 10px;font-size:14px;cursor:pointer;user-select:none}
+.chip:hover{border-color:var(--acc)}
+.chip .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--acc);margin-left:6px;vertical-align:middle}
+.chip.drag{opacity:.4}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;padding:14px;z-index:10}
+.overlay.on{display:flex}
+.modal{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;width:100%;max-width:440px;display:flex;flex-direction:column;gap:10px}
+.modal textarea{min-height:110px;resize:vertical}
+.modal .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.modal h2{margin:0;font-size:18px}
+footer{text-align:center;color:var(--mut);font-size:12px;margin-top:20px}
+footer button{margin-top:8px;font-size:12px;padding:6px 12px}
+@media(max-width:520px){.label{flex-basis:56px;font-size:18px}h1{font-size:23px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>서동은 사건 티어리스트</h1>
+  <p>사건을 눌러 코멘트 확인·수정 · 끌어서 티어 이동 · 아래에서 항목 추가</p>
+</header>
+<main>
+  <form class="add" id="addForm">
+    <input class="name" id="addName" placeholder="새 사건 이름" required>
+    <select id="addTier"></select>
+    <input class="cm" id="addComment" placeholder="코멘트 (선택)">
+    <button type="submit">추가</button>
+  </form>
+  <div class="bar">
+    <button class="sec" id="resetBtn" type="button">처음 상태로 초기화</button>
+    <button class="sec" id="origBtn" type="button">원래 배치 보기</button>
+    <button class="sec" id="unrankBtn" type="button">전부 아래로 내리기</button>
+    <button class="sec" id="clearBtn" type="button">전부 비우기</button>
+  </div>
+  <div id="tiers"></div>
+  <footer>데이터는 이 브라우저에 저장돼요.</footer>
+</main>
+
+<div class="overlay" id="ov">
+  <div class="modal">
+    <h2>사건 상세</h2>
+    <input id="mName">
+    <select id="mTier"></select>
+    <textarea id="mComment" placeholder="코멘트를 적어보세요"></textarea>
+    <div class="row">
+      <button class="danger" id="mDel" type="button">삭제</button>
+      <button class="sec" id="mCancel" type="button">닫기</button>
+      <button id="mSave" type="button">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TIERS=[
+ {k:"GOD",c:"#ffffff",d:"패시브"},
+ {k:"SS",c:"#ff4d6d",d:"직접적인 신체적, 정신적 피해를 입힌 사건"},
+ {k:"S+",c:"#ff7a3d",d:"당하는 사람이 화/정색 등 강한 감정을 드러낸 사건"},
+ {k:"S",c:"#ffa23d",d:"주변 다수 사람들에게 큰 스트레스를 준 사건"},
+ {k:"A",c:"#ffd24a",d:"한 사람에게 큰 스트레스를 준 사건"},
+ {k:"B",c:"#c6e24a",d:"모르는 사람에게 말하기 부끄러울 정도의 사건"},
+ {k:"C",c:"#5fd68a",d:"후대에도 언급이 될만한 사건"},
+ {k:"D",c:"#4ac9d6",d:"시간이 지나면 괜찮아지지만 당시에는 어이가 없었던 행동"},
+ {k:"E",c:"#6a9bff",d:"살짝 작은 스트레스를 줄만한 행동"},
+ {k:"F",c:"#b58cff",d:"그냥 귀엽고 재밌었던 행동"}
+];
+const SEED={
+ "GOD":[["숙성똥꼬집","이론"]],
+ "SS":["레슬링사건","양꼬치사변"],
+ "S+":["소개팅사건","세여맞 사건","탐스오줌 사건"],
+ "S":["모공사건","임형철사건","정윤혁사건","오나경사건","윙박 사건","군대빨래숙성사건"],
+ "A":["꼬작색사건","캠핑사건","대부도사건","은거사건","미니은거사건","동생부탁사건"],
+ "B":["뚱페트병사건","발톱던지기","고성방가","참치죽사건","노샤워사건","5몸평사건",["서동인 16.8","뿌리까지 누르면서 아이폰으로 정확히 잰"]],
+ "C":["가게 문 안엶","음식점 도련님 태도","법원리유리잔살인마","뒷다리살 토사건","발톱 안자르기","젖은발냄새테러사건","노래방마이크침냄새","잘못된 걸 진짜라고 믿는 생각","주식 뽀삐 사건","쿠팡버스 냄새폭탄 사건"],
+ "D":["김치알러지사건","김치전사건","김치만두사건","푸파물귀신사건","치매부정","음주댄스","음주가무","푸파 음식 한 입씩 먹기","도로 위 브레이크 댄스","야찍어사건","러닝시간바꿈","전봇대 강간 사건","피시방 줴줴이야 사건",["남의 건물 발로 찬 사건","동영상"]],
+ "E":["짬뽕 곱기밥 사건","항생제 모름",["빼빼로사건","던지면서 줌"],"마대웅 승부욕 사건","무니코틴담배 궁금 가오","특급봇전쟁사건"],
+ "F":["칼맞남","법원리-잠실 호들갑 사건","쿠팡 퇴근 버스 사건","쿠팡 지갑사건","야동 몰래보기","AV장래희망","BB크림","법원리사일러스","초등학생김치토사건","친구 목잡기","알몸사진사건"]
+};
+const KEY="seodongeun-tier-v2";
+let uid=0;
+const nid=()=>"i"+Date.now().toString(36)+(uid++);
+function seed(){
+  const items=[];
+  for(const t of TIERS) for(const e of (SEED[t.k]||[])){
+    const [name,comment]=Array.isArray(e)?e:[e,""];
+    items.push({id:nid(),name,tier:"POOL",orig:t.k,comment});
+  }
+  return items;
+}
+let items;
+try{const r=localStorage.getItem(KEY);items=r?JSON.parse(r):null}catch(e){items=null}
+if(!Array.isArray(items))items=seed();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(items))}catch(e){}}
+
+const $=id=>document.getElementById(id);
+const tiersEl=$("tiers");
+const POOL={k:"POOL",label:"미분류",c:"#3a4150",d:"아직 티어를 안 정한 항목 — 위 티어로 끌어다 놓으세요"};
+const ALL=[...TIERS,POOL];
+function fillSelect(sel){sel.innerHTML="";for(const t of ALL){const o=document.createElement("option");o.value=t.k;o.textContent=t.label||t.k;sel.appendChild(o)}}
+fillSelect($("addTier"));fillSelect($("mTier"));$("addTier").value="POOL";
+
+let dragId=null;
+function render(){
+  tiersEl.innerHTML="";
+  for(const t of ALL){
+    const row=document.createElement("div");row.className="tier"+(t===POOL?" pool":"");
+    const lab=document.createElement("div");lab.className="label";lab.style.background=t.c;
+    if(t===POOL)lab.style.color="#eef0f4";
+    lab.textContent=t.label||t.k;
+    const body=document.createElement("div");body.className="body";
+    const d=document.createElement("div");d.className="desc";d.textContent=t.d;
+    const box=document.createElement("div");box.className="items";
+    for(const it of items.filter(i=>i.tier===t.k)){
+      const c=document.createElement("div");c.className="chip";c.draggable=true;
+      c.textContent=it.name;
+      if(it.comment){const dot=document.createElement("span");dot.className="dot";c.appendChild(dot);c.title=it.comment}
+      c.draggable=false;
+      c.onclick=()=>{if(c._pt==="touch")openModal(it.id)};
+      c.onpointerdown=e=>startDrag(e,it,c);
+      box.appendChild(c);
+    }
+    row.dataset.tier=t.k;
+    body.append(d,box);row.append(lab,body);tiersEl.appendChild(row);
+  }
+}
+function startDrag(e,it,chip){
+  if(e.button!==0)return;
+  chip._pt=e.pointerType;
+  if(e.pointerType==="touch")return;
+  e.preventDefault();
+  const sx=e.clientX,sy=e.clientY;let ghost=null,over=null;
+  const rowAt=(x,y)=>{const el=document.elementFromPoint(x,y);return el&&el.closest?el.closest(".tier"):null};
+  const move=ev=>{
+    if(!ghost){
+      if(Math.abs(ev.clientX-sx)+Math.abs(ev.clientY-sy)<6)return;
+      ghost=chip.cloneNode(true);
+      Object.assign(ghost.style,{position:"fixed",pointerEvents:"none",zIndex:50,opacity:.9,boxShadow:"0 6px 18px rgba(0,0,0,.5)"});
+      document.body.appendChild(ghost);chip.classList.add("drag");document.body.style.cursor="grabbing";
+    }
+    ghost.style.left=(ev.clientX+8)+"px";ghost.style.top=(ev.clientY+8)+"px";
+    const r=rowAt(ev.clientX,ev.clientY);
+    if(r!==over){if(over)over.classList.remove("over");over=r;if(over)over.classList.add("over")}
+  };
+  const up=ev=>{
+    document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",up);
+    document.body.style.cursor="";
+    if(!ghost){openModal(it.id);return}
+    ghost.remove();if(over)over.classList.remove("over");
+    const r=rowAt(ev.clientX,ev.clientY);
+    if(r&&r.dataset.tier&&r.dataset.tier!==it.tier){it.tier=r.dataset.tier;save()}
+    render();
+  };
+  document.addEventListener("pointermove",move);document.addEventListener("pointerup",up);
+}
+let cur=null;
+function openModal(id){
+  const it=items.find(i=>i.id===id);if(!it)return;cur=id;
+  $("mName").value=it.name;$("mTier").value=it.tier;$("mComment").value=it.comment||"";
+  $("ov").classList.add("on");
+}
+function closeModal(){$("ov").classList.remove("on");cur=null}
+$("mCancel").onclick=closeModal;
+$("ov").onclick=e=>{if(e.target===$("ov"))closeModal()};
+$("mSave").onclick=()=>{
+  const it=items.find(i=>i.id===cur);if(!it)return;
+  const n=$("mName").value.trim();if(n)it.name=n;
+  it.tier=$("mTier").value;it.comment=$("mComment").value.trim();
+  save();render();closeModal();
+};
+$("mDel").onclick=()=>{
+  const it=items.find(i=>i.id===cur);if(!it)return;
+  if($("mDel").dataset.arm!=="1"){$("mDel").dataset.arm="1";$("mDel").textContent="한 번 더 누르면 삭제";
+    setTimeout(()=>{$("mDel").dataset.arm="";$("mDel").textContent="삭제"},2500);return}
+  items=items.filter(i=>i.id!==cur);$("mDel").dataset.arm="";$("mDel").textContent="삭제";
+  save();render();closeModal();
+};
+$("addForm").onsubmit=e=>{
+  e.preventDefault();
+  const name=$("addName").value.trim();if(!name)return;
+  items.push({id:nid(),name,tier:$("addTier").value,comment:$("addComment").value.trim()});
+  $("addName").value="";$("addComment").value="";
+  save();render();
+};
+function armBtn(id,label,armLabel,fn){
+  const b=$(id);
+  b.onclick=()=>{
+    if(b.dataset.arm!=="1"){b.dataset.arm="1";b.textContent=armLabel;
+      setTimeout(()=>{b.dataset.arm="";b.textContent=label},3000);return}
+    b.dataset.arm="";b.textContent=label;fn();save();render();
+  };
+}
+armBtn("resetBtn","처음 상태로 초기화","정말 초기화? 한 번 더 클릭",()=>{items=seed()});
+armBtn("origBtn","원래 배치 보기","처음 입력한 티어로 이동? 한 번 더 클릭",()=>{items.forEach(i=>{if(i.orig)i.tier=i.orig})});
+armBtn("unrankBtn","전부 아래로 내리기","모든 항목을 미분류로? 한 번 더 클릭",()=>{items.forEach(i=>i.tier="POOL")});
+armBtn("clearBtn","전부 비우기","정말 전부 삭제? 한 번 더 클릭",()=>{items=[]});
+render();
+</script>
+</body>
+</html>
